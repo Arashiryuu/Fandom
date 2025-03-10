@@ -40,7 +40,6 @@ __main__: {
     
     const toString = Object.prototype.toString;
     
-    
     window.importArticles({
         type: 'style',
         articles: [
