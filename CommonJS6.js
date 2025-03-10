@@ -45,21 +45,6 @@
  
 'use strict';
  
-/**
- * 1.43 chokes on
- * - import/export
- * - async/await
- * - optional chaining operator `?.`
- * - nullish coalescing operator `??`
- * - static members
- * - public/private class fields (floating, outside of ctor stuff etc)
- * - bigint literal syntax `0n`
- * - numeric separators `1_000`
- * - binary and ocatal literals `0b1`, `0o7`
- * - optional catch binding
- * - object spreading
- */
- 
 __main__: {
 	if (window.UCP && window.UCP.localJS) break __main__;
 	
@@ -89,14 +74,13 @@ __main__: {
 		}
 	];
 	
-	$.getScript('https://community.fandom.com/wiki/User:Arashiryuu0/global.js?action=raw&ctype=text/javascript');
 	window.importArticles(...imports);
 	
 	window.CustomAce = {
 		options: {
 			theme: 'ace/theme/kanagawa',
-			fontSize: 15,
-			fontFamily: '"Berkeley Mono", "Iosevka NFM", "JetBrainsMono NFM", "Consolas", monospace'
+			fontSize: 18,
+			fontFamily: '"Berkeley Mono Variable", "Iosevka NFM", "JetBrainsMono NFM", "Consolas", monospace'
 		}
 	};
 	// disable ligatures while using Iosevka font since its ligatures suck
@@ -186,6 +170,16 @@ __main__: {
 		 * @returns {!boolean}
 		 */
 		const isNil = (anything) => anything === undefined || anything === null;
+
+		/**
+		 * Simple polyfill for nullish coalescing operator (??).
+		 * @param {*} target
+		 * @param {*} fallback
+		 * @returns {*}
+		 */
+		const ifNil = (target, fallback) => isNil(target)
+			? fallback
+			: target;
 		
 		/**
 		 * Safely traverses an object, returns undefined if a property does not exist.
@@ -382,7 +376,14 @@ __main__: {
 			/**
 			 * Logging levels.
 			 */
-			const levels = /** @type {const} */ (['log', 'dir', 'info', 'warn', 'debug', 'error']); // jshint ignore: line
+			const levels = /** @type {const} */ ([ // jshint ignore: line
+				'log',
+				'dir',
+				'info',
+				'warn',
+				'debug',
+				'error'
+			]);
 
 			/**
 			 * @typedef LogLevel
@@ -642,15 +643,16 @@ __main__: {
 		window.UCP.Utils = _Object('Utils');
 		
 		Object.assign(window.UCP.Utils, {
-			DOM: DOM,
+			DOM,
 			type: typeOf,
-			isNil: isNil,
-			isNode: isNode,
-			getProp: getProp,
-			debounce: debounce,
-			throttle: throttle,
-			ApexLaser: ApexLaser,
-			createPipeline: createPipeline
+			isNil,
+			ifNil,
+			isNode,
+			getProp,
+			debounce,
+			throttle,
+			ApexLaser,
+			createPipeline
 		});
 		applyBinds(window.UCP.Utils);
 		Object.freeze(window.UCP.Utils);
