@@ -237,7 +237,7 @@ __main__: {
 		let counter = 0;
 		
 		if (Array.isArray(tree)) {
-			for (counter= 0, length = tree.length; counter < length; counter++) {
+			for (counter = 0, length = tree.length; counter < length; counter++) {
 				const value = tree[counter];
 				ret = queryTree(value, query, options);
 				if (!isNil(ret)) return ret;
