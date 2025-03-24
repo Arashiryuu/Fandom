@@ -226,18 +226,15 @@ __main__: {
 		
 		if (typeof query === 'string') {
 			if (Object.hasOwn(tree, query)) return tree[query];
-		} else if (query(tree)) {
+		} else if (!isNil(query(tree))) {
 			return tree;
 		}
 		
 		if (typeof tree !== 'object' || tree === null) return null;
 		
 		let ret = null;
-		let length = 0;
-		let counter = 0;
-		
 		if (Array.isArray(tree)) {
-			for (counter = 0, length = tree.length; counter < length; counter++) {
+			for (let counter = 0, length = tree.length; counter < length; counter++) {
 				const value = tree[counter];
 				ret = queryTree(value, query, options);
 				if (!isNil(ret)) return ret;
@@ -246,7 +243,7 @@ __main__: {
 			const walkable = options.walkable === null
 				? Object.keys(tree)
 				: options.walkable;
-			for (counter = 0, length = walkable.length; counter < length; counter++) {
+			for (let counter = 0, length = walkable.length; counter < length; counter++) {
 				const key = walkable[counter];
 				if (!Object.hasOwn(tree, key) || options.ignore.includes(key)) continue;
 				ret = queryTree(tree[key], query, options);
