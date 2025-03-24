@@ -290,7 +290,7 @@ __main__: {
 					} else {
 						mw.hook('ext.hljs').fire(window.hljs);
 					}
-					--preloads.current;
+					--preloads;
 				}, Logger.error);
 			});
 		}
@@ -409,7 +409,7 @@ __main__: {
 					return userDisabled.filter((value) => typeof value === 'string');
 				};
 				
-				var CustomAce = Object.create( // jshint ignore: line
+				const CustomAce = Object.create( // jshint ignore: line
 					Object.create(null, {
 						[Symbol.toStringTag]: toDescriptor('CustomAce')
 					})
@@ -983,7 +983,7 @@ __main__: {
 		}
 		
 		const ready = (toasts, lines) => {
-			if (preloads.current > 0) return setTimeout(ready, 1000, toasts, lines);
+			if (preloads > 0) return setTimeout(ready, 1000, toasts, lines);
 			
 			Object.assign(Utils, {
 				'pull': window.importArticles,
@@ -1009,8 +1009,8 @@ __main__: {
 			if (utils.logger) utils.logger.log('Tools:', utils);
 			if (href) {
 				raf(() => {
-					const hrefN = href.replace(/atom-one-(light|dark)/, 'vs2015');
-					highlightTheme.setAttribute('href', hrefN);
+					const nref = href.replace(/atom-one-(light|dark)/, 'vs2015');
+					highlightTheme.setAttribute('href', nref);
 				});
 			}
 			
