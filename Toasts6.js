@@ -1,6 +1,6 @@
 /**
  * Creates simple non-intrusive pop-up notifications.
- * Last modified: 1741578597967
+ * Last modified: 1742889728821
  * @author Arashiryuu0
  * @module Toasts
  * @version 1.2.0
@@ -33,12 +33,12 @@
 	mw
 */
 
-'use strict';
- 
-__main__: {
-	if (window.dev && window.dev.toasts) break __main__;
+;(() => {
+	'use strict';
+	
+	if (window.dev && window.dev.toasts) return;
     
-    const toString = Object.prototype.toString;
+    const toString = Function.call.bind(Object.prototype.toString);
     
     window.importArticles({
         type: 'style',
@@ -48,7 +48,7 @@ __main__: {
     });
 	
     const log = (level) => {
-		const parts = [
+		const getParts = () => [
 			'%c[Toasts] %o',
 			'color: #C9F',
 			new Date().toUTCString()
@@ -57,13 +57,13 @@ __main__: {
 			? level
 			: 'log';
 		return (...args) => {
-			console.groupCollapsed(...parts);
+			console.groupCollapsed(...getParts());
 			console[method](...args);
 			console.groupEnd();
 		};
     };
     
-    const isObject = (item) => toString.call(item) === '[object Object]';
+    const isObject = (item) => toString(item) === '[object Object]';
     
     const deepFreeze = (object, exclude) => {
         if (exclude && exclude(object)) return;
@@ -107,14 +107,14 @@ __main__: {
 	]);
     
     const onError = log('error');
+    const toasts = create('div', { className: 'toasts' });
     
     const helpers = {
         ensureContainer () {
-            if (document.querySelector('.toasts')) return;
-            const wrapper = create('div', { className: 'toasts' });
-            wrapper.style.setProperty('width', document.documentElement.offsetWidth + 'px');
-            wrapper.style.setProperty('bottom', '80px');
-            document.body.appendChild(wrapper);
+            if (toasts.isConnected) return;
+            toasts.style.setProperty('width', document.documentElement.offsetWidth + 'px');
+            toasts.style.setProperty('bottom', '80px');
+            document.body.append(toasts);
         },
         buildToast (message, type, icon) {
             const name = ['toast'];
@@ -158,7 +158,7 @@ __main__: {
         }
     };
     
-    const defaultToast = function (content, options) {
+    const defaultToast = function (content, options = {}) {
         content = typeof content === 'string'
 			? content
 			: '';
@@ -171,7 +171,7 @@ __main__: {
             helpers.parseType(arguments[2], defaultToast.types),
             helpers.parseType(options.icon, defaultToast.types)
         );
-        document.querySelector('.toasts').appendChild(toast);
+        toasts.append(toast);
         new Promise((resolve) => {
 			const timeout = options.timeout
 				? options.timeout
@@ -185,27 +185,27 @@ __main__: {
             });
         }, onError)
         .then(() => {
-            toast.parentElement.removeChild(toast);
-            if (document.querySelectorAll('.toasts .toast').length) return;
-            const toasts = document.querySelector('.toasts');
-            toasts.parentElement.removeChild(toasts);
+            toast.remove();
+            if (toasts.children.length) return;
+            toasts.remove();
         }, onError);
     };
     
     Object.assign(defaultToast, {
-        show (content, options) {
-			return defaultToast(content, options, options.type);
+        show (content, options = {}) {
+        	const { type = 'default' } = options;
+			return defaultToast(content, options, type);
         },
-        info (content, options) {
+        info (content, options = {}) {
             return defaultToast(content, options, 'info');
         },
-        error (content, options) {
+        error (content, options = {}) {
             return defaultToast(content, options, 'error');
         },
-        success (content, options) {
+        success (content, options = {}) {
             return defaultToast(content, options, 'success');
         },
-        warning (content, options) {
+        warning (content, options = {}) {
             return defaultToast(content, options, 'warning');
         },
         types: {
@@ -230,6 +230,6 @@ __main__: {
     window.dev.toasts = defaultToast;
     
     mw.hook('dev.toasts').fire(window.dev.toasts);
-};
+})();
 
 /*@end@*/
