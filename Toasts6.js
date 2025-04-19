@@ -1,9 +1,9 @@
 /**
  * Creates simple non-intrusive pop-up notifications.
- * Last modified: 1742889728821
+ * Last modified: 1744547830916
  * @author Arashiryuu0
  * @module Toasts
- * @version 1.2.0
+ * @version 1.2.2
  */
  
 /*
@@ -69,9 +69,7 @@
         if (exclude && exclude(object)) return;
         if (typeof object === 'object' && object !== null) {
             const props = Object.getOwnPropertyNames(object);
-            const len = props.length;
-            for (let i = 0; i < len; i++) {
-                const key = props[i];
+            for (const key of props) {
                 deepFreeze(object[key], exclude);
             }
         }
@@ -119,14 +117,14 @@
         buildToast (message, type, icon) {
             const name = ['toast'];
             if (type || icon) name.push('toast-has-icon');
-			if (type !== '') name.push('toast-' + type);
+            if (type !== '') name.push('toast-' + type);
             if (!icon && type) icon = type;
             const html = create('div', { className: name.join(' ') }, [
 				Object.hasOwn(this.icons, icon) && create('div', { className: 'toast-icon' }, [
 					this.icons[icon]
 				]),
 				create('div', { className: 'toast-text', textContent: message })
-			].filter(Boolean));
+            ].filter(Boolean));
             return html;
         },
         parseType (type, types) {
@@ -165,10 +163,13 @@
         options = isObject(options)
 			? options
 			: {};
+		if (!Object.hasOwn(options, 'icon')) {
+			options.icon = options.type;
+		}
         helpers.ensureContainer();
         const toast = helpers.buildToast(
             content,
-            helpers.parseType(arguments[2], defaultToast.types),
+            helpers.parseType(options.type, defaultToast.types),
             helpers.parseType(options.icon, defaultToast.types)
         );
         toasts.append(toast);
@@ -197,19 +198,23 @@
 			return defaultToast(content, options, type);
         },
         info (content, options = {}) {
-            return defaultToast(content, options, 'info');
+        	const { type = 'info', icon = 'info' } = options;
+            return defaultToast(content, Object.assign({}, options, { type, icon }));
         },
         error (content, options = {}) {
-            return defaultToast(content, options, 'error');
+            const { type = 'error', icon = 'error' } = options;
+            return defaultToast(content, Object.assign({}, options, { type, icon }));
         },
         success (content, options = {}) {
-            return defaultToast(content, options, 'success');
+            const { type = 'success', icon = 'success' } = options;
+            return defaultToast(content, Object.assign({}, options, { type, icon }));
         },
         warning (content, options = {}) {
-            return defaultToast(content, options, 'warning');
+            const { type = 'warning', icon = 'warning' } = options;
+            return defaultToast(content, Object.assign({}, options, { type, icon }));
         },
         types: {
-            'default': '',
+            'default': 'default',
             'warning': 'warning',
             'success': 'success',
             'error': 'error',
