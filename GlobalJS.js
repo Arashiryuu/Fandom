@@ -44,8 +44,8 @@ __main__: {
 	
 	const raf = requestAnimationFrame;
 	
-	const slice = Function.call.bind(Function.call, Array.prototype.slice);
-	const toString = Function.call.bind(Function.call, Object.prototype.toString);
+	const slice = Function.call.bind(Array.prototype.slice);
+	const toString = Function.call.bind(Object.prototype.toString);
 	
 	const pages = ['js', 'ts', 'cpp', 'css', 'json', 'javascript'];
 	const extension = window.location.pathname.split('.').pop();
@@ -58,6 +58,8 @@ __main__: {
 			}
 		})
 	);
+	
+	const css = (styles, ...vars) => String.raw(styles, ...vars).split(/\s+/g).join(' ').trim();
 	
 	const Logger = _Object('Logger');
 	const Utils = _Object('Tools');
@@ -95,7 +97,7 @@ __main__: {
 	};
 	
 	__logger__: {
-		const levels = /** @type {const} */ ([
+		const levels = /** @type {const} */ ([ // jshint ignore: line
 			'log',
 			'info',
 			'warn',
@@ -105,14 +107,11 @@ __main__: {
 		const c = 'color: #8cde94;';
 		const getParts = (name = 'console') => [
 			'%c[[%c  %s  %c::%c  %s  %c]]%c',
-			c,
-			'',
+			c, '',
 			name,
-			c,
-			'',
+			c, '',
 			new Date().toLocaleString().replace(',', ' ~'),
-			c,
-			''
+			c, ''
 			// goofy format because firefox is a disgrace
 			// and doesn't support ansi codes
 		];
@@ -133,8 +132,8 @@ __main__: {
 			};
 		};
 		
-		for (const level of levels) {
-			Logger[level] = _log({ type: level });
+		for (const type of levels) {
+			Logger[type] = _log({ type });
 		}
 		
 		applyBinds(Logger);
@@ -190,12 +189,12 @@ __main__: {
 				case 'classList':
 				case 'classes': {
 					if (!Array.isArray(props[key])) props[key] = [props[key]];
-					e.classList.add.apply(e.classList, props[key]);
+					e.classList.add(...props[key]);
 					break;
 				}
 				case 'children': {
 					if (!Array.isArray(props[key])) props[key] = [props[key]];
-					e.append.apply(e, props[key]);
+					e.append(...props[key]);
 					break;
 				}
 				default: {
@@ -226,15 +225,18 @@ __main__: {
 		
 		if (typeof query === 'string') {
 			if (Object.hasOwn(tree, query)) return tree[query];
-		} else if (!isNil(query(tree))) {
+		} else if (query(tree)) {
 			return tree;
 		}
 		
 		if (typeof tree !== 'object' || tree === null) return null;
 		
 		let ret = null;
+		let length = 0;
+		let counter = 0;
+		
 		if (Array.isArray(tree)) {
-			for (let counter = 0, length = tree.length; counter < length; counter++) {
+			for (counter = 0, length = tree.length; counter < length; counter++) {
 				const value = tree[counter];
 				ret = queryTree(value, query, options);
 				if (!isNil(ret)) return ret;
@@ -243,7 +245,7 @@ __main__: {
 			const walkable = options.walkable === null
 				? Object.keys(tree)
 				: options.walkable;
-			for (let counter = 0, length = walkable.length; counter < length; counter++) {
+			for (counter = 0, length = walkable.length; counter < length; counter++) {
 				const key = walkable[counter];
 				if (!Object.hasOwn(tree, key) || options.ignore.includes(key)) continue;
 				ret = queryTree(tree[key], query, options);
@@ -261,8 +263,8 @@ __main__: {
 		});
 	};
 	
-	const getHookValues = (list) => {
-		if (!Array.isArray(list) || !list.length) return [];
+	const getFromHooks = (list) => {
+		if (!Array.isArray(list) || !list.length) return Promise.resolve([]);
 		return Promise.all(list.map(getFromHook));
 	};
 	
@@ -271,17 +273,19 @@ __main__: {
 		
 		__hljs__: {
 			if (window.hljs) break __hljs__;
-			[
-				'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/styles/atom-one-dark.min.css',
-				'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/highlight.min.js'
-			].forEach((url, index) => {
-				const isCss = index === 0;
-				const type = isCss
-					? 'text'
-					: 'script';
-					
-				$.get(url, void 0, $.noop, type).then(() => {
-					if (isCss) {
+			const urls = [
+				{
+					url: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/styles/atom-one-dark.min.css',
+					type: 'text'
+				},
+				{
+					url: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/highlight.min.js',
+					type: 'script'
+				}
+			];
+			for (const { url, type } of urls) {
+				$.get(url, void 0, $.noop, type).then(() => { // jshint ignore: line
+					if (type === 'text') {
 						const link = create('link', {
 							href: url,
 							rel: 'stylesheet'
@@ -292,17 +296,14 @@ __main__: {
 					}
 					--preloads;
 				}, Logger.error);
-			});
+			}
 		}
 		
 		/**
 		 * Change source editor theme.
 		 */
 		__ace__: {
-			// const isAcePage = ['edit', 'submit'].includes(mw.config.get('wgAction'));
-			// if (!isAcePage || !pages.includes(extension)) break __ace__;
-			
-			const loadTheme = (ace, data) => void ace.define('ace/theme/' + data.cssClass.slice(4), data.deps, data.fn.bind(data));
+			const loadTheme = (ace, data) => void ace.define(`ace/theme/${data.cssClass.slice(4)}`, data.deps, data.fn(data));
 			
 			if (!window.ace) {
 				const modules = [
@@ -314,7 +315,7 @@ __main__: {
 				})
 				.then(() => {
 					const p = mw.config.get('wgExtensionAssetsPath') || '/extensions-ucp/mw139';
-					window.ace.config.set('basePath', p + '/CodeEditor/modules/ace');
+					window.ace.config.set('basePath', `${p}/CodeEditor/modules/ace`);
 				})
 				.then(void 0, Logger.error);
 			}
@@ -323,7 +324,7 @@ __main__: {
 				window.CustomAce = {
 					options: {
 						theme: 'ace/theme/kanagawa',
-						fontSize: 14,
+						fontSize: 16,
 						fontFamily: '"Berkeley Mono", "JetBrainsMono NFM", "CaskaydiaCovePL NF SemiLight", "Fira Code Retina", "Iosevka NFM"',
 						enableLiveAutocompletion: false
 					}
@@ -340,7 +341,7 @@ __main__: {
 						fontSize: 13,
 						minLines: 10,
 						showGutter: true,
-						fontFamily: '"JetBrainsMono NF", "CaskaydiaCove NFP", "Fira Code Retina", "Iosevka NFM", "Ubuntu Mono", "Consolas", monospace',
+						fontFamily: '"JetBrainsMono NFM", "CaskaydiaCove NFP", "Fira Code Retina", "Iosevka NFM", "Ubuntu Mono", "Consolas", monospace',
 						useSoftTabs: false,
 						printMargin: false,
 						newLineMode: 'unix',
@@ -409,11 +410,24 @@ __main__: {
 					return userDisabled.filter((value) => typeof value === 'string');
 				};
 				
+				const getConfig = (ca) => ({
+					options: getOptions(ca.options),
+					defines: getDefines(ca.defines),
+					disabledRules: getDisabledRules(ca.disabledRules)
+				});
+				
 				const CustomAce = Object.create( // jshint ignore: line
 					Object.create(null, {
 						[Symbol.toStringTag]: toDescriptor('CustomAce')
 					})
 				);
+				
+				const fn = (data) => (require, exports, module) => {
+					const d = require('ace/lib/dom');
+					const { isDark, cssText, cssClass } = data;
+					Object.assign(exports, { isDark, cssText, cssClass });
+					d.importCssString(cssText, cssClass);
+				};
 				
 				Object.defineProperties(CustomAce, {
 					defaults: toDescriptor({
@@ -428,7 +442,7 @@ __main__: {
 						useSoftTabs: false,
 						printMargin: false,
 						newLineMode: 'unix',
-						placeholder: 'Wherefore art thou, Code?',
+						placeholder: '아이고',
 						showInvisibles: false,
 						showLineNumbers: true,
 						showFoldWidgets: true,
@@ -462,7 +476,8 @@ __main__: {
 						css: 'ace/mode/css',
 						text: 'ace/mode/text',
 						diff: 'ace/mode/diff',
-						javascript: 'ace/mode/javascript'
+						javascript: 'ace/mode/javascript',
+						typescript: 'ace/mode/typescript'
 					}, true),
 					defines: toDescriptor({
 						catppuccin: {
@@ -474,110 +489,85 @@ __main__: {
 							],
 							isDark: true,
 							cssClass: 'ace_catppuccin',
-							cssText: [
-								'.ace_catppuccin',
-								'.ace_gutter-active-line',
-								'{background-color:',
-								'rgba(0,',
-								'0,',
-								'0,',
-								'0.3);}.ace_catppuccin',
-								'{color:',
-								'#cdd6f4',
-								'!important;background:',
-								'#1e1e2e',
-								'!important;}.ace_catppuccin',
-								'.ace_invisible',
-								'{color:',
-								'#504945;}.ace_catppuccin',
-								'.ace_marker-layer',
-								'.ace_selection',
-								'{background:',
-								'rgba(0,',
-								'0,',
-								'0,',
-								'0.6);}.ace_catppuccin.ace_multiselect',
-								'.ace_selection.ace_start',
-								'{box-shadow:',
-								'0',
-								'0',
-								'3px',
-								'0px',
-								'#002240;}.ace_catppuccin',
-								'.ace_keyword',
-								'{color:',
-								'#cba6f7;}.ace_catppuccin',
-								'.ace_comment',
-								'{color:',
-								'#585b70;}.ace_catppuccin',
-								'.ace-statement',
-								'{color:',
-								'#a6e3a1;}.ace_catppuccin',
-								'.ace_variable',
-								'{color:',
-								'#cdd6f4;}.ace_catppuccin',
-								'.ace_variable.ace_language',
-								'{color:',
-								'#f9e2af;}.ace_catppuccin',
-								'.ace_constant',
-								'{color:',
-								'#fab387;}.ace_catppuccin',
-								'.ace_constant.ace_language',
-								'{color:',
-								'#fab387;}.ace_catppuccin',
-								'.ace_constant.ace_numeric',
-								'{color:',
-								'#fab387;}.ace_catppuccin',
-								'.ace_string',
-								'{color:',
-								'#a6e3a1;}.ace_catppuccin',
-								'.ace_support',
-								'{color:',
-								'#f38ba8;}.ace_catppuccin',
-								'.ace_support.ace_function',
-								'{color:',
-								'#cdd6f4;}.ace_catppuccin',
-								'.ace_storage',
-								'{color:',
-								'#cba6f7;}.ace_catppuccin',
-								'.ace_keyword.ace_operator',
-								'{color:',
-								'#94e2d5;}.ace_catppuccin',
-								'.ace_punctuation.ace_operator',
-								'{color:',
-								'#94e2d5;}.ace_catppuccin',
-								'.ace_marker-layer',
-								'.ace_active-line',
-								'{background:',
-								'rgba(0,',
-								'0,',
-								'0,',
-								'0.3);}.ace_catppuccin',
-								'.ace_marker-layer',
-								'.ace_selected-word',
-								'{border-radius:',
-								'4px;border:',
-								'8px',
-								'solid',
-								'#3f475d;}.ace_catppuccin',
-								'.ace_print-margin',
-								'{width:',
-								'5px;background:',
-								'#3C3836;}.ace_catppuccin',
-								'.ace_indent-guide',
-								'{background:',
-								'url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAEklEQVQImWNQUFD4z6Crq/sfAAuYAuYl+7lfAAAAAElFTkSuQmCC\")',
-								'right',
-								'repeat-y;filter:',
-								'invert(20%);}'
-							].join(' '),
-							fn (require, exports, module) {
-								const d = require('ace/lib/dom');
-								exports.isDark = this.isDark;
-								exports.cssText = this.cssText;
-								exports.cssClass = this.cssClass;
-								d.importCssString(this.cssText, this.cssClass);
-							}
+							cssText: css`
+								.ace_catppuccin {
+								    color: #cdd6f4 !important;
+								    background: #1e1e2e !important;
+								    & :is(.ace_gutter-active-line, .ace_marker-layer .ace_active-line) {
+								        background-color: rgba(0, 0, 0, 0.3);
+								    }
+								    & .ace_invisible {
+								        color: #504945;
+								    }
+								    & .ace_marker-layer .ace_selection {
+								        background: rgba(0, 0, 0, 0.6);
+								    }
+								    &.ace_multiselect .ace_selection.ace_start {
+								        box-shadow: 0 0 3px 0px #002240;
+								    }
+								    & .ace_keyword {
+								        color: #cba6f7;
+								    }
+								    & .ace_doc {
+								        color: #f9e2af;
+								        &.ace_lparen,
+								        &.ace_rparen {
+								            color: #585b70;
+								        }
+								    }
+								    & .ace_comment {
+								        color: #585b70;
+								        &.ace_doc.ace_tag {
+								            color: #cba6f7;
+								        }
+								    }
+								    & :is(.ace_statement,
+								    .ace_string) {
+								        color: #a6e3a1;
+								    }
+								    & .ace_variable {
+								        color: #cdd6f4;
+								        &.ace_language {
+								            color: #f9e2af;
+								        }
+								        &.ace_parameter.ace_doc {
+								            color: #f38ba8;
+								        }
+								    }
+								    & .ace_constant {
+								        color: #fab387;
+								        &:is(.ace_language, .ace_numeric) {
+								            color: #fab387;
+								        }
+								    }
+								    & .ace_support {
+								        color: #f38ba8;
+								        &.ace_function {
+								            color: #cdd6f4;
+								        }
+								    }
+								    & .ace_storage {
+								        color: #cba6f7;
+								    }
+								    & :is(.ace_keyword.ace_operator,
+								    .ace_punctuation.ace_operator) {
+								        color: #94e2d5;
+								    }
+								    & .ace_marker-layer .ace_selected-word {
+								        border-radius: 4px;
+								        border: 8px solid #3f475d;
+								    }
+								    & .ace_print-margin {
+								        width: 5px;
+								        background: #3c3836;
+								    }
+								    & .ace_indent-guide {
+								        background: url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAEklEQVQImWNQUFD4z6Crq/sfAAuYAuYl+7lfAAAAAElFTkSuQmCC\") right repeat-y;
+								        filter: invert(20%);
+								    }
+								}
+							`,
+							fn
 						},
 						kanagawa: {
 							deps: [
@@ -588,105 +578,52 @@ __main__: {
 							],
 							isDark: true,
 							cssClass: 'ace_kanagawa',
-							cssText: [
-								'.ace_kanagawa',
-								'{',
-								'color:',
-								'#dcd7ba',
-								'!important;',
-								'background:',
-								'#1f1f28',
-								'!important;',
-								'display:',
-								'block;',
-								'padding:',
-								'0.5em;',
-								'overflow-x:',
-								'auto;',
-								'}',
-								'.ace_kanagawa',
-								'.ace_comment',
-								'{',
-								'color:',
-								'#727169',
-								'!important;',
-								'}',
-								'.ace_kanagawa',
-								':is(.ace_keyword,',
-								'.ace_storage,',
-								'.ace_type,',
-								'.ace_comment.ace_tag)',
-								'{',
-								'color:',
-								'#957fb8',
-								'!important;',
-								'}',
-								'.ace_editor.ace_kanagawa',
-								':is(.ace_paren,',
-								'.ace_keyword.ace_operator)',
-								'{',
-								'color:',
-								'#c0a36e',
-								'!important;',
-								'}',
-								'.ace_kanagawa',
-								':is(.ace_punctuation)',
-								'{',
-								'color:',
-								'#9cabca',
-								'!important;',
-								'}',
-								'.ace_kanagawa',
-								'.ace_string',
-								'{',
-								'color:',
-								'#98bb6c',
-								'!important;',
-								'}',
-								'.ace_editor.ace_kanagawa',
-								':is(.ace_doc:not(.ace_comment),',
-								'.ace_variable.ace_language)',
-								'{',
-								'color:',
-								'#7aa89f',
-								'!important;',
-								'}',
-								'.ace_editor.ace_kanagawa',
-								':is(.ace_variable.ace_parameter)',
-								'{',
-								'color:',
-								'#b8b4d0',
-								'!important;',
-								'}',
-								'.ace_kanagawa',
-								'.ace_constant.ace_numeric',
-								'{',
-								'color:',
-								'#d27e99',
-								'!important;',
-								'}',
-								'.ace_kanagawa',
-								'.ace_constant',
-								'{',
-								'color:',
-								'#ffa066',
-								'!important;',
-								'}',
-								'.ace_editor.ace_kanagawa',
-								'.ace_quasi:not(.ace_string)',
-								'{',
-								'color:',
-								'#7fb4ca',
-								'!important;',
-								'}'
-							].join(' '),
-							fn (require, exports, module) {
-								const d = require('ace/lib/dom');
-								exports.isDark = this.isDark;
-								exports.cssText = this.cssText;
-								exports.cssClass = this.cssClass;
-								d.importCssString(this.cssText, this.cssClass);
-							}
+							cssText: css`
+								.ace_kanagawa {
+									color: #dcd7ba !important;
+									background: #1f1f28 !important;
+									display: block;
+									padding: 0.5em;
+									overflow-x: auto;
+									
+									& .ace_comment {
+										color: #727169 !important;
+										&.ace_tag {
+											color: #957fb8 !important;
+										}
+									}
+									& :is(.ace_keyword, .ace_storage, .ace_type) {
+										color: #957fb8 !important;
+									}
+									&.ace_editor {
+										& :is(.ace_paren, .ace_keyword.ace_operator) {
+											color: #c0a36e !important;
+										}
+										& :is(.ace_doc:not(.ace_comment), .ace_variable.ace_language) {
+											color: #7aa89f !important;
+										}
+										& .ace_variable.ace_parameter {
+											color: #b8b4d0 !important;
+										}
+										& .ace_quasi:not(.ace_string) {
+											color: #7fb4ca !important;
+										}
+									}
+									& .ace_punctuation {
+										color: #9cabca !important;
+									}
+									& .ace_string {
+										color: #98bb6c !important;
+									}
+									& .ace_constant {
+										color: #ffa066 !important;
+										&.ace_numeric {
+											color: #d27e99 !important;
+										}
+									}
+								}
+							`,
+							fn
 						},
 						naysayer: {
 							deps: [
@@ -697,161 +634,58 @@ __main__: {
 							],
 							isDark: true,
 							cssClass: 'ace_naysayer',
-							cssText: [
-							  '/**',
-							  '*',
-							  'Naysayer',
-							  'ace',
-							  'editor',
-							  'theme',
-							  '*/',
-							  '.ace_naysayer',
-							  '.ace_gutter-active-line',
-							  '{',
-							  'background-color:',
-							  'rgba(0,',
-							  '0,',
-							  '0,',
-							  '0.3);',
-							  '}',
-							  '.ace_naysayer',
-							  '{',
-							  'color:',
-							  '#d1b897',
-							  '!important;',
-							  'background:',
-							  '#062626',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_invisible',
-							  '{',
-							  'color:',
-							  '#504945;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_marker-layer',
-							  '.ace_selection',
-							  '{',
-							  'background:',
-							  'blue;',
-							  '}',
-							  '.ace_naysayer.ace_multiselect',
-							  '.ace_selection.ace_start',
-							  '{',
-							  'box-shadow:',
-							  '0',
-							  '0',
-							  '3px',
-							  '0px',
-							  '#000;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_comment.ace_doc.ace_tag,',
-							  '.ace_naysayer',
-							  '.ace_storage,',
-							  '.ace_naysayer',
-							  '.ace_keyword',
-							  '{',
-							  'color:',
-							  '#fff',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_comment',
-							  '{',
-							  'color:',
-							  '#44b340',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_variable.ace_language',
-							  '{',
-							  'color:',
-							  '#8cde94',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_constant.ace_language,',
-							  '.ace_naysayer',
-							  '.ace_constant.ace_numeric',
-							  '{',
-							  'color:',
-							  '#7ad0c6',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_regexp,',
-							  '.ace_naysayer',
-							  '.ace_string',
-							  '{',
-							  'color:',
-							  '#2ec09c',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_support,',
-							  '.ace_naysayer',
-							  '.ace_variable,',
-							  '.ace_naysayer',
-							  '.ace_keyword.ace_operator,',
-							  '.ace_naysayer',
-							  '.ace_support.ace_function,',
-							  '.ace_naysayer',
-							  '.ace_punctuation.ace_operator',
-							  '{',
-							  'color:',
-							  'unset',
-							  '!important;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_marker-layer',
-							  '.ace_active-line',
-							  '{',
-							  'background:',
-							  'rgba(0,',
-							  '0,',
-							  '0,',
-							  '0.3);',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_marker-layer',
-							  '.ace_selected-word',
-							  '{',
-							  'border-radius:',
-							  '4px;',
-							  'border:',
-							  '8px',
-							  'solid',
-							  '#3f475d;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_print-margin',
-							  '{',
-							  'width:',
-							  '5px;',
-							  'background:',
-							  'transparent;',
-							  '}',
-							  '.ace_naysayer',
-							  '.ace_indent-guide',
-							  '{',
-							  'background:',
-							  'url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAEklEQVQImWNQUFD4z6Crq/sfAAuYAuYl+7lfAAAAAElFTkSuQmCC\")',
-							  'right',
-							  'repeat-y;',
-							  'filter:',
-							  'invert(20%);',
-							  '}',
-							  '/*@end@*/'
-							].join(' '),
-							fn (require, exports, module) {
-								const d = require('ace/lib/dom');
-								exports.isDark = this.isDark;
-								exports.cssText = this.cssText;
-								exports.cssClass = this.cssClass;
-								d.importCssString(this.cssText, this.cssClass);
-							}
+							cssText: css`
+								.ace_naysayer {
+									color: #d1b897 !important;
+									background: #062323 !important;
+									
+									& :is(.ace_gutter-active-line, .ace_marker-layer .ace_active-line) {
+										background-color: rgba(0, 0, 0, 0.3);
+									}
+									& .ace_invisible {
+										color: #504945;
+									}
+									& .ace_marker-layer .ace_selection {
+										background: blue;
+									}
+									&.ace_multiselect .ace_selection.ace_start {
+										box-shadow: 0 0 3px 0 black;
+									}
+									& :is(.ace_storage, .ace_keyword:not(.ace_operator), .ace_comment.ace_doc.ace_tag) {
+										color: #fff !important;
+									}
+									& .ace_comment {
+										color: #44b340 !important;
+									}
+									& .ace_variable.ace_language {
+										color: #8cde94 !important;
+									}
+									& .ace_constant {
+										&:is(.ace_language, .ace_numeric) {
+											color: #7ad0c6 !important;
+										}
+									}
+									& :is(.ace_regexp, .ace_string) {
+										color: #2ec09c !important;
+									}
+									& :is(.ace_support, .ace_variable:not(.ace_language), .ace_support.ace_function, .ace_keyword.ace_operator, .ace_punctuation.ace_operator) {
+										color: unset !important;
+									}
+									& .ace_marker-layer .ace_selected-word {
+										border-radius: 4px;
+										border: 8px solid #3f475d;
+									}
+									& .ace_print-margin {
+										width: 5px;
+										background: transparent;
+									}
+									& .ace_indent-guide {
+										background: url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAEklEQVQImWNQUFD4z6Crq/sfAAuYAuYl+7lfAAAAAElFTkSuQmCC\") right repeat-y;
+										filter: invert(20%);
+									}
+								}
+							`,
+							fn
 						}
 					}, true)
 				});
@@ -861,9 +695,7 @@ __main__: {
 					if (!target) return;
 					
 					const ace = window.ace;
-					const options = getOptions(window.CustomAce.options);
-					const defines = getDefines(window.CustomAce.defines);
-					const disabledRules = getDisabledRules(window.CustomAce.disabledRules);
+					const { options, defines, disabledRules } = getConfig(window.CustomAce);
 					
 					const editor = ace.edit(target);
 					if (Object.keys(defines).length) {
@@ -872,7 +704,7 @@ __main__: {
 							loadTheme(ace, data);
 						}
 					}
-					requestAnimationFrame(() => {
+					raf(() => {
 						editor.setOptions(options);
 						if (!ace.config.$modes[CustomAce.modes.css]) return;
 						session.$worker.call('setDisabledRules', [
@@ -881,9 +713,7 @@ __main__: {
 					});
 				});
 				
-				window.dev = window.dev || {};
-				window.dev.CustomAce = CustomAce;
-				
+				window.dev = Object.assign(window.dev || {}, { CustomAce });
 				mw.hook('dev.CustomAce').fire(CustomAce);
 			})();
 		}
@@ -903,6 +733,8 @@ __main__: {
 				'catppuccin-mocha',
 				'gruvbox-dark',
 				'tokyo-night',
+				'naysayer',
+				'ef-dream',
 				'kanagawa',
 				'dracula',
 				'vs2015',
@@ -924,7 +756,7 @@ __main__: {
 				
 				if (!found) {
 					const fresh = create('link', {
-						href: base + activeTheme + '.css?action=raw&ctype=text/css',
+						href: `${base}${activeTheme}.css?action=raw&ctype=text/css`,
 						rel: 'stylesheet'
 					});
 					document.head.appendChild(fresh);
@@ -936,7 +768,7 @@ __main__: {
 				
 			const setTheme = (theme) => {
 				const links = [
-					...document.querySelectorAll('link[href*="' + base + '"]'),
+					...document.querySelectorAll(`link[href*="${base}"]`),
 					...document.querySelectorAll('link[href*="highlight.js/10.2.0/styles/"]')
 				];
 				
@@ -960,7 +792,7 @@ __main__: {
 				const target = document.getElementById('mw-clearyourcache');
 				if (!target) return;
 				themes.forEach((theme, idx) => {
-					if (idx === 5) {
+					if (idx > 0 && idx % 5 === 0) {
 						const n = create('hr', {
 							style: {
 								visibility: 'hidden',
@@ -975,7 +807,7 @@ __main__: {
 					btn.addEventListener('click', buttonClick(btn));
 					buttons.push(btn);
 				});
-				container.append.apply(container, buttons);
+				container.append(...buttons);
 				target.appendChild(container);
 			};
 			
@@ -986,13 +818,14 @@ __main__: {
 			if (preloads > 0) return setTimeout(ready, 1000, toasts, lines);
 			
 			Object.assign(Utils, {
-				'pull': window.importArticles,
-				'lines': lines,
-				'logger': Logger,
-				'toasts': toasts,
-				'debounce': debounce,
-				'throttle': throttle,
-				'queryTree': queryTree,
+				css,
+				pull: window.importArticles,
+				lines,
+				toasts,
+				logger: Logger,
+				debounce,
+				throttle,
+				queryTree
 			});
 			applyBinds(Utils);
 			Object.assign(Utils.toasts, toasts);
@@ -1002,15 +835,15 @@ __main__: {
 		
 		myHook.add((utils) => {
 			const uri = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/styles/atom-one-dark.min.css';
-			const highlightTheme = document.head.querySelector('link[href="' + uri + '"]');
+			const highlightTheme = document.head.querySelector(`link[href="${uri}"]`);
 			const href = highlightTheme && highlightTheme.getAttribute('href');
 				
 			// if (utils.lines) utils.lines.process();
 			if (utils.logger) utils.logger.log('Tools:', utils);
 			if (href) {
 				raf(() => {
-					const nref = href.replace(/atom-one-(light|dark)/, 'vs2015');
-					highlightTheme.setAttribute('href', nref);
+					const hrefN = href.replace(/atom-one-(light|dark)/, 'vs2015');
+					highlightTheme.setAttribute('href', hrefN);
 				});
 			}
 			
@@ -1021,16 +854,18 @@ __main__: {
 			if (!hljs || !lines) return;
 			
 			const style = create('style', {
-				id: '__selection_style__',
-				textContent: [
-					'::selection, .hljs-selection {',
-					'background: var(--text, rgba(255, 255, 255, 0.1));',
-					'color: var(--back, rgba(255, 255, 255, 1));',
-					'}'
-				].join(' ')
+				id: '&selection_style',
+				children: [
+					css`
+						::selection, .hljs-selection {
+							background: var(--text, rgba(255, 255, 255, 0.1));
+							color: var(--back, rgba(255, 255, 255, 1));
+						}
+					`
+				]
 			});
 			
-			if (!document.getElementById('__selection_style__')) document.head.appendChild(style);
+			if (!document.getElementById('&selection_style')) document.head.appendChild(style);
 			
 			const blockCache = [];
 			
@@ -1059,22 +894,20 @@ __main__: {
 				};
 			};
 			
-			const addIdentifier = (element) => {
-				return () => {
-					let lang = 'javascript';
-					if (pages.includes(extension)) {
-						lang = hljs.getLanguage(extension).name.toLowerCase();
-					} else {
-						const mwLang = slice(element.parentElement.classList).find((string) => {
-							return string.startsWith('mw-highlight-language-');
-						});
-						if (mwLang) lang = mwLang.split('-').pop();
-					}
-					element.classList.add(lang);
-					element.setAttribute('data-lang', lang);
-					element.style.setProperty('--attr', 'data-lang');
-					raf(lines.process);
-				};
+			const addIdentifier = (element) => () => {
+				let lang = 'javascript';
+				if (pages.includes(extension)) {
+					lang = hljs.getLanguage(extension).name.toLowerCase();
+				} else {
+					const mwLang = slice(element.parentElement.classList)
+						.find((string) => string.startsWith('mw-highlight-language-'));
+					if (mwLang) lang = mwLang.split('-').pop();
+				}
+				if (lang.length === 0) return;
+				element.classList.add(lang);
+				element.setAttribute('data-lang', lang);
+				element.style.setProperty('--attr', 'data-lang');
+				raf(lines.process);
 			};
 			
 			const synFix = (element) => () => {
@@ -1159,39 +992,43 @@ __main__: {
 			mw.hook('dev.assert').fire(assert);
 		}
 		
-		const hookList = [
+		const hooks = [
 			'ext.hljs',
 			'dev.toasts',
 			'dev.CodeblockLineNumbers'
 		];
-		getHookValues(hookList).then((deps) => {
-			const lines = deps.pop();
-			ready(deps[1], lines);
-			useHljs(deps[0], lines);
+		getFromHooks(hooks).then((deps) => {
+			const [hljs, toasts, lines] = deps;
+			ready(toasts, lines);
+			useHljs(hljs, lines);
 		});
 	};
 	
 	mw.hook('dev.preact').add((Preact) => {
 		const {
 			h,
-			render
+			render,
+			_hooks: {
+				useRef,
+				useMemo,
+				useState,
+				useEffect,
+				useReducer,
+				useCallback,
+				useLayoutEffect
+			},
+			_preact: {
+				options: {
+					unmount
+				}
+			}
 		} = Preact;
-		const {
-			useRef,
-			useMemo,
-			useState,
-			useEffect,
-			useReducer,
-			useCallback,
-			useLayoutEffect
-		} = Preact._hooks;
-		const { unmount } = Preact._preact.options;
 		
 		const useInterval = (callback, delay) => { // jshint ignore: line
 			const ref = useRef(callback);
 			const tick = useCallback(() => {
 				raf(ref.current);
-			}, []);
+			}, [ref.current]);
 			
 			useLayoutEffect(() => {
 				ref.current = callback;
@@ -1305,7 +1142,7 @@ __main__: {
 	window.UCP = window.UCP || {};
 	window.UCP.globalJS = Object.assign(_Object('GlobalJS'), { version: '1.0.0' });
 	
-	window.importArticles.apply(null, [
+	window.importArticles(
 		{
 			type: 'script',
 			articles: [
@@ -1321,7 +1158,7 @@ __main__: {
 				'u:dev:MediaWiki:CodeblockLineNumbers.css'
 			]
 		}
-	]);
+	);
 	
 	requestIdleCallback(run);
 }
