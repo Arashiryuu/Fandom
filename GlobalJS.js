@@ -315,8 +315,8 @@ __main__: {
 					modules.forEach(req);
 				})
 				.then(() => {
-					const p = mw.config.get('wgExtensionAssetsPath') || '/extensions-ucp/mw139';
-					window.ace.config.set('basePath', `${p}/CodeEditor/modules/ace`);
+					const p = mw.config.get('wgExtensionAssetsPath') || '/extensions-ucp/mw143';
+					window.ace.config.set('basePath', `${p}/CodeEditor/modules/lib/ace`);
 				})
 				.then(void 0, Logger.error);
 			}
@@ -696,10 +696,18 @@ __main__: {
 				'nord'
 			];
 			const buttons = [];
+			const fs = create('fieldset', {
+				className: 'codeblock-themes',
+				children: [
+					create('legend', {
+						children: ['Theme Select']
+					})
+				]
+			});
 			const container = create('div');
 
 			container.setAttribute('id', 'code-button-container');
-			container.setAttribute('style', 'display: block; padding: 5px 0 10px 0; text-align: center;');
+			container.setAttribute('style', 'display: block; padding: 6px 0 0 0; text-align: center;');
 
 			const handleLinks = (links, activeTheme) => {
 				const found = links.find((link) => link.getAttribute('href').includes(activeTheme));
@@ -743,7 +751,7 @@ __main__: {
 			};
 
 			const addButtons = () => {
-				if (buttons.length || document.contains(container)) return;
+				if (buttons.length || document.contains(fs)) return;
 				const target = document.getElementById('mw-clearyourcache');
 				if (!target) return;
 				themes.forEach((theme, idx) => {
@@ -763,7 +771,8 @@ __main__: {
 					buttons.push(btn);
 				});
 				container.append(...buttons);
-				target.appendChild(container);
+				fs.append(container);
+				target.appendChild(fs);
 			};
 
 			mw.hook('wikipage.content').add(addButtons);
@@ -1101,7 +1110,10 @@ __main__: {
 		addText();
 	});
 
-	window.UCP = Object.assign({}, window.UCP, Object.assign(_Object('GlobalJS'), { version: '1.0.0' }));
+	window.UCP = Object.assign(_Object('GlobalJS'), window.UCP, {
+		globalJS: true,
+		version: '1.0.0'
+	});
 
 	window.importArticles(
 		{
