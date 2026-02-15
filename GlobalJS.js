@@ -1,8 +1,3 @@
-/**
- * Testing out UCP global JS.
- * @namespace UCPGlobal
- */
-
 /*
 	jshint
 	undef: true,
@@ -24,7 +19,7 @@
 	singleGroups: true,
 	futurehostile: true
 */
-
+ 
 /*
 	globals
 	mw,
@@ -33,25 +28,35 @@
 	Temporal,
 	requestIdleCallback
 */
-
+ 
+/**
+ * @typedef DictKey
+ * @type {!Exclude<PropertyKey, number>}
+ */
+ 
 'use strict';
-
+ 
 window.CodeblockLinesConfig = {
 	ready: false
 };
-
+ 
 __main__: {
 	if (window.UCP && window.UCP.globalJS) break __main__;
-
+	
 	const raf = requestAnimationFrame;
-
+	
 	const slice = Function.call.bind(Array.prototype.slice);
 	const toString = Function.call.bind(Object.prototype.toString);
-
+	
 	const pages = ['js', 'ts', 'cpp', 'css', 'json', 'javascript'];
 	const extension = window.location.pathname.split('.').pop();
-
-	const _Object = (value) => Object.create(
+	
+	/**
+	 * Creates clean objects with a `Symbol.toStringTag` description of the object as the only inherited data.
+	 * @param {!DictKey} [value='0']
+	 * @returns {!object}
+ 	 */
+	const _Object = (value = '0') => Object.create(
 		Object.create(null, {
 			[Symbol.toStringTag]: {
 				enumerable: false,
@@ -59,17 +64,23 @@ __main__: {
 			}
 		})
 	);
-
+	
 	const css = (styles, ...vars) => String.raw(styles, ...vars).split(/\s+/g).join(' ').trim();
-
+	
 	const Logger = _Object('Logger');
 	const Utils = _Object('Tools');
-
+	
 	const applyBinds = (n) => {
 		const fns = Object.getOwnPropertyNames(n).filter((method) => typeof n[method] === 'function');
 		for (const f of fns) n[f] = n[f].bind(n);
 	};
-
+	
+	/**
+	 * @param {!VoidFunction} callback
+	 * @param {!number} delay
+	 * @param {!boolean} [immediate]
+	 * @returns {!VoidFunction}
+ 	 */
 	const debounce = (callback, delay, immediate) => {
 		let t = 0;
 		return function () {
@@ -85,7 +96,12 @@ __main__: {
 			if (now) callback.apply(context, args);
 		};
 	};
-
+	
+	/**
+	 * @param {!VoidFunction} callback 
+	 * @param {!number} delay
+	 * @returns {!VoidFunction}
+ 	 */
 	const throttle = (callback, delay) => {
 		let last = 0;
 		return function () {
@@ -96,7 +112,7 @@ __main__: {
 			}
 		};
 	};
-
+	
 	__logger__: {
 		const levels = /** @type {const} */ ([ // jshint ignore: line
 			'log',
@@ -106,43 +122,67 @@ __main__: {
 			'error'
 		]);
 		const c = 'color: #8cde94;';
-		const getParts = (name = 'console') => [
+		const getParts = () => [
 			'%c[[%c  %s  %c::%c  %s  %c]]%c',
 			c, '',
-			name,
+			'GlobalJS',
 			c, '',
 			new Date().toLocaleString().replace(',', ' ~'),
 			c, ''
 			// goofy format because firefox is a disgrace
 			// and doesn't support ansi codes
 		];
-
+		
 		const getLevel = (level) => levels.includes(level)
 			? level
 			: 'log';
-
-		const _log = (props) => {
-			if (toString(props) !== '[object Object]') return null;
-			const level = getLevel(props.type);
+		
+		const _log = (type) => {
+			const level = getLevel(type);
 			return (...args) => {
-				console.groupCollapsed(...getParts(level.toUpperCase()));
+				console.groupCollapsed(...getParts());
 				for (const arg of args) {
 					console[level]('%c~%c %o', c, '', arg);
 				}
 				console.groupEnd();
 			};
 		};
-
+		
+		const stagger = (type) => {
+			const level = getLevel(type);
+			const logs = [];
+			return Object.freeze({
+				push (...log) {
+					logs.push(log);
+				},
+				flush () {
+					logs.splice(0);
+				},
+				print () {
+					console.groupCollapsed(...getParts());
+					for (const log of logs) {
+						console[level](...log);
+					}
+					console.groupEnd();
+				}
+			});
+		};
+		
 		for (const type of levels) {
-			Logger[type] = _log({ type });
+			Logger[type] = _log(type);
+			Logger[`_${type}`] = stagger(type);
 		}
-
+		
 		applyBinds(Logger);
 		Object.freeze(Logger);
 	}
-
+	
+	/**
+	 * @param {*} anything
+	 * @returns {!boolean}
+	 */
 	const isNil = (n) => n === undefined || n === null;
-
+	
 	const create = (type, props, ...children) => {
 		if (typeof type !== 'string') type = 'div';
 		const e = document.createElement(type);
@@ -159,8 +199,7 @@ __main__: {
 			? 'dblclick'
 			: name;
 		const normalizeDataAttr = (name) => name.replace(/([A-Z]){1}/g, '-$1').toLowerCase();
-		const keys = Object.keys(props);
-		for (const key of keys) {
+		for (const key in props) {
 			switch (key) {
 				case 'text': {
 					e.textContent = props[key];
@@ -215,28 +254,25 @@ __main__: {
 		e.$$props = props;
 		return e;
 	};
-
+	
 	const queryTree = (tree, query, options) => {
 		if (isNil(options)) options = {
 			walkable: null,
 			ignore: []
 		};
-
+		
 		if (typeof query === 'string') {
 			if (Object.hasOwn(tree, query)) return tree[query];
 		} else if (query(tree)) {
 			return tree;
 		}
-
+		
 		if (typeof tree !== 'object' || tree === null) return null;
-
+		
 		let ret = null;
-		let length = 0;
-		let counter = 0;
-
+		
 		if (Array.isArray(tree)) {
-			for (counter = 0, length = tree.length; counter < length; counter++) {
-				const value = tree[counter];
+			for (const value of tree) {
 				ret = queryTree(value, query, options);
 				if (!isNil(ret)) return ret;
 			}
@@ -244,33 +280,42 @@ __main__: {
 			const walkable = options.walkable === null
 				? Object.keys(tree)
 				: options.walkable;
-			for (counter = 0, length = walkable.length; counter < length; counter++) {
-				const key = walkable[counter];
+			for (const key of walkable) {
 				if (!Object.hasOwn(tree, key) || options.ignore.includes(key)) continue;
 				ret = queryTree(tree[key], query, options);
 				if (!isNil(ret)) return ret;
 			}
 		}
-
+		
 		return ret;
 	};
-
+	
+	/**
+	 * @param {!string} hookName
+	 * @returns {!Promise<any>}
+ 	 */
 	const getFromHook = (hookName) => {
 		if (typeof hookName !== 'string') return Promise.reject('Invalid hook name, hook names must be strings.');
 		return new Promise((resolve) => {
 			mw.hook(hookName).add(resolve);
 		});
 	};
-
+	
+	/**
+	 * @param {!string[]} list
+	 * @returns {!Promise<any[]>}
+ 	 */
 	const getFromHooks = (list) => {
 		if (!Array.isArray(list) || !list.length) return Promise.resolve([]);
 		return Promise.all(list.map(getFromHook));
 	};
-
+	
+	/**
+	 * @type {!IdleRequestCallback}
+ 	 */
 	const run = () => {
-		const myHook = mw.hook('window.ready');
-		let preloads = 2;
-
+		const { reject: _reject, resolve: _resolve, promise: deferred } = Promise.withResolvers();
+		
 		__hljs__: {
 			if (window.hljs) break __hljs__;
 			const urls = [
@@ -283,34 +328,31 @@ __main__: {
 					type: 'script'
 				}
 			];
-			const parse = (url, type) => () => {
-				if (type === 'text') {
-					const link = create('link', {
-						href: url,
-						rel: 'stylesheet'
-					});
-					document.head.appendChild(link);
-				} else {
-					mw.hook('ext.hljs').fire(window.hljs);
-				}
-				--preloads;
-			};
-			for (const { url, type } of urls) {
-				$.get(url, void 0, $.noop, type).then(parse(url, type), Logger.error);
-			}
+			const getUrl = ({ url, type }) => new Promise((resolve, reject) => {
+				return $.get(url, void 0, $.noop, type).then(() => resolve(url), reject);
+			});
+			Promise.all(urls.map(getUrl)).then(([href]) => {
+				const link = create('link', {
+					rel: 'stylesheet',
+					href
+				});
+				document.head.append(link);
+				mw.hook('ext.hljs').fire(window.hljs);
+				_resolve();
+			}, Logger.error);
 		}
-
+		
 		/**
 		 * Change source editor theme.
 		 */
 		__ace__: {
 			if (window.dev && window.dev.CustomAce) break __ace__;
-
+		
 			if (!window.ace) {
-				const modules = [
+				const modules = /** @type {const} */ ([ // jshint ignore: line
 					'ext.codeEditor.ace',
 					'ext.codeEditor.ace.modes'
-				];
+				]);
 				mw.loader.using(modules, (req) => { // req === mw.loader.require
 					modules.forEach(req);
 				})
@@ -320,63 +362,67 @@ __main__: {
 				})
 				.then(void 0, Logger.error);
 			}
-
+			
 			if (!Object.hasOwn(window, 'CustomAce')) {
 				window.CustomAce = {
 					options: {
 						theme: 'ace/theme/kanagawa',
 						fontSize: 16,
-						fontFamily: '"Berkeley Mono", "JetBrainsMono NFM", "CaskaydiaCovePL NF SemiLight", "Fira Code Retina", "Iosevka NFM"',
+						fontFamily: '"Berkeley Mono Variable", "JetBrainsMono NFM", "CaskaydiaCovePL NF SemiLight", "Fira Code Retina", "Iosevka NFM"',
 						enableLiveAutocompletion: false
 					}
 				};
 			}
-
-			const toDescriptor = (value, enumerable) => ({
+			
+			const toDescriptor = (value, enumerable = false) => ({
 				configurable: false,
 				enumerable: Boolean(enumerable),
 				writable: false,
 				value: Object.freeze(value)
 			});
-
+			
 			const isObject = (value) => toString(value) === '[object Object]';
-
+			
 			const getOptions = (userOpts) => {
 				if (!isObject(userOpts)) return CustomAce.defaults;
 				return Object.assign({}, CustomAce.defaults, userOpts);
 			};
-
+			
 			const getDefines = (userDefs) => {
 				if (!isObject(userDefs)) return CustomAce.defines;
 				return Object.assign({}, CustomAce.defines, userDefs);
 			};
-
+			
 			const getDisabledRules = (userDisabled) => {
 				if (!Array.isArray(userDisabled)) return CustomAce.disabledRules;
 				return userDisabled.filter((value) => typeof value === 'string');
 			};
-
+			
 			const getConfig = (ca) => ({
 				options: getOptions(ca.options),
 				defines: getDefines(ca.defines),
 				disabledRules: getDisabledRules(ca.disabledRules)
 			});
-
+			
 			const CustomAce = Object.create( // jshint ignore: line
 				Object.create(null, {
 					[Symbol.toStringTag]: toDescriptor('CustomAce')
 				})
 			);
-
+			
 			const fn = (data) => (require, exports, module) => {
 				const d = require('ace/lib/dom');
 				const { isDark, cssText, cssClass } = data;
 				Object.assign(exports, { isDark, cssText, cssClass });
 				d.importCssString(cssText, cssClass);
 			};
-
-			const loadTheme = (ace, data) => void ace.define(`ace/theme/${data.cssClass.slice(4)}`, data.deps, data.fn(data));
-
+			
+			const loadTheme = (ace, data) => void ace.define(
+				`ace/theme/${data.cssClass.slice(4)}`,
+				data.deps,
+				data.fn(data)
+			);
+			
 			Object.defineProperties(CustomAce, {
 				defaults: toDescriptor({
 					wrap: 'off',
@@ -401,8 +447,8 @@ __main__: {
 					relativeLineNumbers: false,
 					wrapBehavioursEnabled: true,
 					navigateWithinSoftTabs: true,
-					enableLiveAutocompletion: false, // ace has god awful suggestions
-					autoScrollEditorIntoView: true
+					autoScrollEditorIntoView: true,
+					enableLiveAutocompletion: false // ace has god awful suggestions
 				}, true),
 				disabledRules: toDescriptor([
 					'ids',
@@ -427,6 +473,7 @@ __main__: {
 					LUA: 'ace/mode/lua',
 					CSS: 'ace/mode/css',
 					TEXT: 'ace/mode/text',
+					JSON: 'ace/mode/json',
 					HTML: 'ace/mode/html',
 					DIFF: 'ace/mode/diff',
 					ODIN: 'ace/mode/odin',
@@ -540,7 +587,7 @@ __main__: {
 								display: block;
 								padding: 0.5em;
 								overflow-x: auto;
-
+								
 								& .ace_comment {
 									color: #727169 !important;
 									&.ace_tag {
@@ -593,7 +640,7 @@ __main__: {
 							.ace_naysayer {
 								color: #d1b897 !important;
 								background: #062323 !important;
-
+								
 								& :is(.ace_gutter-active-line, .ace_marker-layer .ace_active-line) {
 									background-color: rgba(0, 0, 0, 0.3);
 								}
@@ -644,14 +691,14 @@ __main__: {
 					}
 				}, true)
 			});
-
+			
 			mw.hook('codeEditor.configure').add((session) => {
 				const target = document.querySelector('.ace_editor');
 				if (!target) return;
-
+				
 				const { ace } = window;
 				const { options, defines, disabledRules } = getConfig(window.CustomAce);
-
+				
 				const editor = ace.edit(target);
 				CustomAce.editor = editor;
 				if (Object.keys(defines).length) {
@@ -668,17 +715,17 @@ __main__: {
 					]);
 				});
 			});
-
+			
 			window.dev = Object.assign({}, window.dev, { CustomAce });
 			mw.hook('dev.CustomAce').fire(CustomAce);
 		}
-
+		
 		/**
 		 * Codeblock theme buttons
 		 */
 		__themes__: {
 			if (!pages.includes(extension)) break __themes__;
-
+			
 			const base = 'https://dev.fandom.com/wiki/MediaWiki:Highlight-js/styles/';
 			const themes = [
 				'atom-one-dark',
@@ -704,19 +751,19 @@ __main__: {
 					})
 				]
 			});
-			const container = create('div');
-
-			container.setAttribute('id', 'code-button-container');
-			container.setAttribute('style', 'display: block; padding: 6px 0 0 0; text-align: center;');
-
+			const container = create('div', {
+				id: 'code-button-container',
+				style: 'display: block; padding: 6px 0 0 0; text-align: center;'
+			});
+			
 			const handleLinks = (links, activeTheme) => {
 				const found = links.find((link) => link.getAttribute('href').includes(activeTheme));
-
+				
 				for (const link of links) {
 					if (link.getAttribute('disabled') !== null) continue;
 					link.setAttribute('disabled', '');
 				}
-
+				
 				if (!found) {
 					const fresh = create('link', {
 						href: `${base}${activeTheme}.css?action=raw&ctype=text/css`,
@@ -725,19 +772,19 @@ __main__: {
 					document.head.appendChild(fresh);
 					return;
 				}
-
+				
 				found.removeAttribute('disabled');
 			};
-
+				
 			const setTheme = (theme) => {
 				const links = [
 					...document.querySelectorAll(`link[href*="${base}"]`),
 					...document.querySelectorAll('link[href*="highlight.js/10.2.0/styles/"]')
 				];
-
+				
 				raf(() => handleLinks(links, theme));
 			};
-
+			
 			const buttonClick = (button) => {
 				const theme = button.getAttribute('data-theme');
 				return () => {
@@ -749,9 +796,9 @@ __main__: {
 					}
 				};
 			};
-
+				
 			const addButtons = () => {
-				if (buttons.length || document.contains(fs)) return;
+				if (buttons.length || document.querySelector('fieldset.codeblock-themes')) return;
 				const target = document.getElementById('mw-clearyourcache');
 				if (!target) return;
 				themes.forEach((theme, idx) => {
@@ -774,13 +821,11 @@ __main__: {
 				fs.append(container);
 				target.appendChild(fs);
 			};
-
+			
 			mw.hook('wikipage.content').add(addButtons);
 		}
-
-		const ready = (toasts, lines) => {
-			if (preloads > 0) return setTimeout(ready, 1000, toasts, lines);
-
+		
+		const ready = (toasts, lines) => void deferred.then(() => {
 			Object.assign(Utils, {
 				css,
 				pull: window.importArticles,
@@ -794,28 +839,25 @@ __main__: {
 			applyBinds(Utils);
 			Object.assign(Utils.toasts, toasts);
 			Object.freeze(Utils);
-			myHook.fire(Utils);
-		};
-
-		myHook.add((utils) => {
+			
 			const uri = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.2.0/styles/atom-one-dark.min.css';
 			const highlightTheme = document.head.querySelector(`link[href="${uri}"]`);
 			const href = highlightTheme && highlightTheme.getAttribute('href');
-
-			if (utils.logger) utils.logger.log('Tools:', utils);
+			
+			Utils.logger.log('Tools:', Utils);
 			if (href) {
 				raf(() => {
 					const hrefN = href.replace(/atom-one-(light|dark)/, 'vs2015');
 					highlightTheme.setAttribute('href', hrefN);
 				});
 			}
-
-			window.UCP.tools = utils;
+			
+			window.UCP.tools = Utils;
 		});
-
+		
 		const useHljs = (hljs, lines) => {
 			if (!hljs || !lines) return;
-
+			
 			const style = create('style', {
 				id: '&selection_style',
 				children: [
@@ -827,11 +869,11 @@ __main__: {
 					`
 				]
 			});
-
+			
 			if (!document.getElementById('&selection_style')) document.head.appendChild(style);
-
+			
 			const blockCache = [];
-
+			
 			const addSelectionHighlights = (element) => {
 				const cache = {
 					backgroundColor: '',
@@ -856,7 +898,7 @@ __main__: {
 					});
 				};
 			};
-
+			
 			const addIdentifier = (element) => () => {
 				let lang = 'javascript';
 				if (pages.includes(extension)) {
@@ -872,13 +914,13 @@ __main__: {
 				element.style.setProperty('--attr', 'data-lang');
 				raf(lines.process);
 			};
-
+			
 			const synFix = (element) => () => {
 				const name = element.parentElement.classList[1].split('-').pop();
 				element.classList.replace('javascript', name);
 				element.setAttribute('data-lang', name);
 			};
-
+			
 			const _paint = (element) => () => {
 				hljs.highlightBlock(element);
 				raf(addIdentifier(element));
@@ -887,24 +929,24 @@ __main__: {
 				raf(cb);
 				raf(synFix(element));
 			};
-
+			
 			const paint = (element) => void raf(_paint(element));
-
+			
 			const pres = document.querySelectorAll('.mw-highlight pre');
 			for (const pre of pres) {
 				paint(pre);
 			}
-
+			
 			window.__blockCache = blockCache;
 		};
-
+		
 		__assert__: {
 			if (window.dev && window.dev.assert) break __assert__;
 			/**
 			 * @callback BehaviourFunction
 			 * @param {!string} message
 			 */
-
+			
 			/**
 			 * @type {!BehaviourFunction}
 			 */
@@ -912,14 +954,14 @@ __main__: {
 				console.error('Assertion error: %s', message);
 				debugger; // jshint ignore: line
 			};
-
+			
 			/**
 			 * @type {!BehaviourFunction}
 			 */
 			const _throw = (message) => {
 				throw new Error(message);
 			};
-
+			
 			/**
 			 * @param {!BehaviourFunction} action Intended behaviour if assertion fails
 			 */
@@ -934,7 +976,7 @@ __main__: {
 					}
 				};
 			};
-
+			
 			const assert = {
 				/**
 				 * Begins a debugger session if assertion fails
@@ -946,27 +988,26 @@ __main__: {
 				 */
 				error: behaviour(_throw)
 			};
-
+			
 			Object.freeze(assert);
-
+			
 			window.dev = window.dev || {};
 			window.dev.assert = assert;
-
+			
 			mw.hook('dev.assert').fire(assert);
 		}
-
+		
 		const hooks = [
 			'ext.hljs',
 			'dev.toasts',
 			'dev.CodeblockLineNumbers'
 		];
-		getFromHooks(hooks).then((deps) => {
-			const [hljs, toasts, lines] = deps;
+		getFromHooks(hooks).then(([hljs, toasts, lines]) => {
 			ready(toasts, lines);
 			useHljs(hljs, lines);
 		});
 	};
-
+	
 	mw.hook('dev.preact').add((Preact) => {
 		const {
 			h,
@@ -986,17 +1027,17 @@ __main__: {
 				}
 			}
 		} = Preact;
-
+		
 		const useInterval = (callback, delay) => { // jshint ignore: line
 			const ref = useRef(callback);
 			const tick = useCallback(() => {
 				raf(ref.current);
 			}, [ref.current]);
-
+			
 			useLayoutEffect(() => {
 				ref.current = callback;
 			}, [callback]);
-
+			
 			useEffect(() => {
 				const id = setInterval(tick, delay);
 				return () => {
@@ -1004,7 +1045,7 @@ __main__: {
 				};
 			}, [delay]);
 		};
-
+		
 		const getClockState = () => {
 			const lang = mw.user.options.get('language') || 'en-gb';
 			return {
@@ -1012,16 +1053,16 @@ __main__: {
 				time: Temporal.Now.plainTimeISO().toLocaleString(lang, { hour12: false })
 			};
 		};
-
+		
 		const Clock = () => {
 			const [date, setDate] = useState(getClockState);
 			const [hovered, setHovered] = useState(false);
 			const update = useCallback(() => {
 				setDate(getClockState);
 			}, []);
-
+			
 			useInterval(update, 1000);
-
+			
 			return h('span', {
 				key: 'ClockMain',
 				className: 'clock',
@@ -1057,7 +1098,7 @@ __main__: {
 				}
 			});
 		};
-
+		
 		const Text = () => h(Preact.Fragment, {
 			children: [
 				h('span', {
@@ -1074,47 +1115,48 @@ __main__: {
 				})
 			]
 		});
-
+		
 		const regions = [
 			'top-container',
 			'local-navigation'
 		];
-
+		
 		const selector = regions.map((region) => `.fandom-community-header__${region}`).join(' + ');
-
+			
 		const addClock = () => {
 			if (document.getElementById('DisplayClock')) return;
-
+			
 			const timeRoot = create('div', {
 				id: 'DisplayClock'
 			});
 			const target = document.querySelector(selector);
-
+				
 			render(h(Clock), timeRoot);
 			target.appendChild(timeRoot);
 		};
-
+		
 		const addText = () => {
 			if (document.getElementById('mw-current-version')) return;
-
+			
 			const textRoot = create('div', {
 				id: 'mw-current-version'
 			});
 			const target = document.querySelector(selector);
-
+			
 			render(h(Text), textRoot);
 			target.append(textRoot);
 		};
-
+		
 		addClock();
 		addText();
 	});
-
-	window.UCP = Object.assign(_Object('GlobalJS'), window.UCP, {
+	
+	window.UCP = window.UCP || _Object('GlobalJS');
+	Object.assign(window.UCP, {
 		globalJS: true,
 		version: '1.0.0'
 	});
-
+	
 	window.importArticles(
 		{
 			type: 'script',
@@ -1132,8 +1174,8 @@ __main__: {
 			]
 		}
 	);
-
+	
 	requestIdleCallback(run);
 }
-
+	
 /*@end@*/
