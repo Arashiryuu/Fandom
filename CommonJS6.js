@@ -51,8 +51,8 @@ __main__: {
 	const raf = requestAnimationFrame;
 	// Removes the need to `.call`
 	// I saw this at <https://github.com/tc39/proposal-is-error/blob/33dd75bb6b2c4159cbe8b11bb6554bbf4de69cf8/polyfill.js>
-	const find = Function.bind.call(Function.call, Array.prototype.find);
-	const toStr = Function.bind.call(Function.call, Object.prototype.toString);
+	const find = Function.call.bind(Array.prototype.find);
+	const toStr = Function.call.bind(Object.prototype.toString);
 	
 	/**
 	 * List of imports.
@@ -69,7 +69,7 @@ __main__: {
 		{
 			type: 'style',
 			articles: [
-				'u:community:User:Arashiryuu0/global.css'
+				'u:bloodborne:User:Arashiryuu0/common.css'
 			]
 		}
 	];
@@ -78,14 +78,24 @@ __main__: {
 	
 	window.CustomAce = {
 		options: {
-			theme: 'ace/theme/kanagawa',
+			theme: 'ace/theme/naysayer',
 			fontSize: 18,
 			fontFamily: '"Berkeley Mono Variable", "Iosevka NFM", "JetBrainsMono NFM", "Consolas", monospace'
 		}
 	};
+	
+	const css = (styles, ...vars) => String.raw(styles, ...vars).split(/\s+/g).join(' ').trim();
 	// disable ligatures while using Iosevka font since its ligatures suck
 	// but its `%` character is king
-	// mw.util.addCSS(':root {--no-liga: \'calt\' 0, \'liga\' 0, \'zero\' 1;} html .ace_editor, html .ace_editor * { font-feature-settings: var(--no-liga) !important; }');
+	// mw.util.addCSS(css`
+	// 	:root {
+	// 		--no-liga: 'calt' 0, 'liga' 0, 'zero' 1;
+	// 	}
+	// 	html .ace_editor,
+	// 	html .ace_editor * {
+	// 		font-feature-settings: var(--no-liga) !important;
+	// 	}
+	// `);
 	
 	/**
 	 * @param {*} [current]
@@ -134,7 +144,7 @@ __main__: {
 	
 	/**
 	 * Creates clean objects with a `Symbol.toStringTag` description of the object as the only inherited data.
-	 * @param {!DictKey} value
+	 * @param {!DictKey} [value='0']
 	 * @returns {!object}
 	 */
 	const _Object = (value = '0') => Object.create(
@@ -170,12 +180,16 @@ __main__: {
 		 * @returns {!boolean}
 		 */
 		const isNil = (anything) => anything === undefined || anything === null;
-
+		
 		/**
-		 * Simple polyfill for nullish coalescing operator (??).
+		 * Simple polyfill for nullish coalescing operator (??). 
 		 * @param {*} target
 		 * @param {*} fallback
 		 * @returns {*}
+		 * @example
+		 * ```js
+		 * const user = ifNil(getUserSync(), { id: -1, name: 'John Doe' });
+		 * ```
 		 */
 		const ifNil = (target, fallback) => isNil(target)
 			? fallback
@@ -222,10 +236,7 @@ __main__: {
 		 */
 		const applyBinds = (target) => {
 			const methods = Object.getOwnPropertyNames(target).filter((key) => isFunction(target[key]));
-			if (!methods.length) return;
-			for (const method of methods) {
-				target[method] = target[method].bind(target);
-			}
+			for (const method of methods) target[method] = target[method].bind(target);
 		};
 		
 		/**
@@ -256,7 +267,7 @@ __main__: {
 			 * @param {!string} name
 			 * @returns {!string}
 			 */
-			const normalize = (name) => name === 'doubleclick'
+			const toEventName = (name) => name === 'doubleclick'
 				? 'dblclick'
 				: name;
 			/**
@@ -268,7 +279,7 @@ __main__: {
 			 * @param {!string} key
 			 * @returns {!string}
 			 */
-			const dataNormalize = (key) => key.replace(/([A-Z]{1,})/g, '-$1').toLowerCase();
+			const toDataAttr = (key) => key.replace(/([A-Z]{1,})/g, '-$1').toLowerCase();
 			
 			Object.assign(DOM, {
 				/**
@@ -302,7 +313,7 @@ __main__: {
 							case 'className': {
 								props[key] = props[key].split(' ');
 							} // jshint ignore: line
-							case 'classList':
+							case 'classList': // eslint-disable-line no-fallthrough
 							case 'classes': {
 								if (!Array.isArray(props[key])) props[key] = [props[key]];
 								e.classList.add(...props[key]);
@@ -327,7 +338,7 @@ __main__: {
 							}
 							default: {
 								if (isEvent(key)) {
-									const event = normalize(key.slice(2).toLowerCase());
+									const event = toEventName(key.slice(2).toLowerCase());
 									if (Array.isArray(props[key]) && props[key].length) {
 										const listeners = props[key].filter(isFunction);
 										for (const listener of listeners) {
@@ -339,7 +350,7 @@ __main__: {
 									break;
 								}
 								if (isDataAttr(key)) {
-									const attr = dataNormalize(key);
+									const attr = toDataAttr(key);
 									e.setAttribute(attr, props[key]);
 									break;
 								}
@@ -392,18 +403,17 @@ __main__: {
 			
 			/**
 			 * Provides label data for logging methods.
-			 * @param {!string} name
 			 * @returns {!string[]}
 			 */
-			const getParts = (name = 'console') => [
+			const getParts = () => [
 				'%c[[%c  %s  %c::%c  %s  %c]]%c',
-				'color: #a4e5ab;',
+				'color: #8cde94;', // previously #a4e5ab
 				'',
-				name,
-				'color: #a4e5ab;',
+				'CommonJS',
+				'color: #8cde94;',
 				'',
 				new Date().toLocaleString().replace(',', ' ~'),
-				'color: #a4e5ab;',
+				'color: #8cde94;',
 				''
 				// firefox is an embarrassment
 				// '\x1b[92m[[\x1b[0m  \x1b[37m%s\x1b[0m  \x1b[92;1m::\x1b[0m  \x1b[37m%s\x1b[0m  \x1b[92m]]\x1b[0m',
@@ -416,24 +426,19 @@ __main__: {
 			 * @param {!LogLevel} level
 			 * @returns {!LogLevel}
 			 */
-			const getLevel = (level) => {
-				const base = 'log';
-				if (level in levels) return levels[level];
-				return levels.includes(level)
-					? level
-					: base;
-			};
+			const getLevel = (level) => levels.includes(level)
+				? level
+				: 'log';
 			
 			/**
 			 * Creates log methods.
 			 * @param {!LogLevel} level
-			 * @param {!string} name
 			 * @returns {!VoidFunction}
 			 */
-			const makeLog = (level, name) => {
+			const makeLog = (level) => {
 				const lvl = getLevel(level);
 				return (...args) => {
-					console.groupCollapsed(...getParts(name));
+					console.groupCollapsed(...getParts());
 					console[lvl](...args);
 					console.groupEnd();
 				};
@@ -441,9 +446,8 @@ __main__: {
 
 			/**
 			 * @param {!LogLevel} level
-			 * @param {!string} name
 			 */
-			const stagger = (level, name) => {
+			const stagger = (level = 'log') => {
 				const lvl = getLevel(level);
 				const logs = [];
 				return Object.freeze({
@@ -454,7 +458,7 @@ __main__: {
 						logs.splice(0);
 					},
 					print () {
-						console.groupCollapsed(...getParts(name));
+						console.groupCollapsed(...getParts());
 						for (const log of logs) {
 							console[lvl](...log);
 						}
@@ -464,8 +468,8 @@ __main__: {
 			};
 			
 			for (const level of levels) {
-				Logger[level] = Object.freeze(makeLog(level, 'Special:MyPage/common.js'));
-				Logger[`_${level}`] = stagger(level, 'Special:MyPage/common.js');
+				Logger[level] = Object.freeze(makeLog(level));
+				Logger[`_${level}`] = stagger(level);
 			}
 			
 			applyBinds(Logger);
@@ -494,23 +498,26 @@ __main__: {
 			const clone = (button) => button.cloneNode(true);
 			const names = find(wdsButtons, (x) => x.firstElementChild.classList.contains('wds-is-secondary'));
 			if (!names) break __buttons__;
-			const firstName = getProp(names, 'firstElementChild.className');
+			const wanted = 'wiki-tools__theme-switch';
+			const found = find(names.children, (x) => x.classList.contains(wanted));
+			if (!found) break __buttons__;
+			const firstName = found.className;
 			if (!firstName) break __buttons__;
 			const buttons = [
 				DOM.create('a', {
-					className: firstName.replace('wiki-tools__search', 'wiki-tools__user-js'),
+					className: firstName.replace(wanted, 'wiki-tools__user-js').trim(),
 					text: 'JS',
 					title: 'User JS',
 					href: '/wiki/User:Arashiryuu0/common.js'
 				}),
 				DOM.create('a', {
-					className: firstName.replace('wiki-tools__search', 'wiki-tools__user-css'),
+					className: firstName.replace(wanted, 'wiki-tools__user-css').trim(),
 					text: 'CSS',
 					title: 'User CSS',
 					href: '/wiki/User:Arashiryuu0/common.css'
 				}),
 				DOM.create('a', {
-					className: firstName.replace('wiki-tools__search', 'wiki-tools__random'),
+					className: firstName.replace(wanted, 'wiki-tools__random').trim(),
 					text: '?',
 					title: 'Random Page',
 					href: '/wiki/Special:Random',
@@ -536,6 +543,9 @@ __main__: {
 				 * search, discussions, recent changes, theme, my buttons, dropdown
 				 */
 				wds.append(children, wds.querySelector('.wds-dropdown'));
+				const f = document.querySelector(`.${wanted}`);
+				if (!f) return;
+				f.remove();
 			};
 			for (const wds of wdsButtons) handleWds(wds);
 			fired.buttons = true;
@@ -646,7 +656,6 @@ __main__: {
 			DOM,
 			type: typeOf,
 			isNil,
-			ifNil,
 			isNode,
 			getProp,
 			debounce,
@@ -673,6 +682,7 @@ __main__: {
 				'tomorrow-night',
 				'atom-one-dark',
 				'gruvbox-dark',
+				'kanagawa',
 				'dracula',
 				'vs2015'
 			];
@@ -680,7 +690,7 @@ __main__: {
 			 * Randomly picked theme.
 			 * @type {!string}
 			 */
-			const pick = themes[0];//themes[Math.floor(Math.random() * themes.length)];
+			const pick = themes.at(-3);
 			/**
 			 * Disables my globally added codeblock theme to allow local themes to highlight properly.
 			 */
@@ -708,6 +718,7 @@ __main__: {
 		});
 		
 		fired.loaded = true;
+		Logger.log('Loaded!');
 	};
 	
 	window.UCP = window.UCP || _Object('UCP');
